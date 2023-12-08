@@ -8,13 +8,13 @@ import pygame
 import os.path
 import sys
 
-REGEX_DS036 = re.compile("hP\d{4}")
-REGEX_DS033 = re.compile("hR")
-REGEX_DS031 = re.compile("hM")
-REGEX_DS032 = re.compile("hN")
-REGEX_DS030 = re.compile("hS")
-REGEX_DS301 = re.compile("hV")
-
+REGEX_DS036 = re.compile(r"hP\d{4}")
+REGEX_DS033 = re.compile(r"hR")
+REGEX_DS031 = re.compile(r"hM")
+REGEX_DS032 = re.compile(r"hN")
+REGEX_DS030 = re.compile(r"hS")
+REGEX_DS301 = re.compile(r"hV")
+LAST_PLAYED_ANNOUNCEMENT_ID=''
 
 
 
@@ -67,24 +67,29 @@ def process_incoming_line(line):
 	# check checksum
 	# match to type
 	print(len(line))
+	print(str(line))
 
-	if line[-1] == '\r':
-		print("Last char is CR")
-		stripped_telegram = line[:-2]
-		if re.match(REGEX_DS036, stripped_telegram):
+	if chr(line[-1]) == '\r':
+		stripped_telegram = line[:-1].decode('ascii')
+		print(stripped_telegram)
+		print(REGEX_DS036.match(stripped_telegram))
+		if REGEX_DS036.match(stripped_telegram) is not None:
 			process_DS036(stripped_telegram)
 	else:
 		print("Telegram unknown")
 def process_DS036(line):
-	print("DS036")
+	global LAST_PLAYED_ANNOUNCEMENT_ID
 	number = line[2:6]
-	file_path = 'audio/' + number + '.wav'
-	if os.path.isfile(file_path):
-		sound = pygame.mixer.Sound(file_path)
-		sound.play()
-		print("Playing announcement with ID " + number)
-	else:
-		print("Did not find announcement file with ID " + number)
+	if number != LAST_PLAYED_ANNOUNCEMENT_ID:
+		file_path = 'audio/' + number + '.wav'
+		if os.path.isfile(file_path):
+
+			sound = pygame.mixer.Sound(file_path)
+			sound.play()
+			print("Playing announcement with ID " + number)
+			LAST_PLAYED_ANNOUNCEMENT_ID = number
+		else:
+			print("Did not find announcement file with ID " + number)
 
 
 pygame.init()
@@ -92,10 +97,11 @@ pygame.init()
 
 port = serial.Serial()
 port.baudrate = 1200
-port.port = '/dev/ttyS0'
-port.bytesize = 7
-port.parity = 'E'
-port.timeout = 2.0
+port.port = '/dev/tty.usbserial-1420'
+port.bytesize = serial.SEVENBITS
+port.parity = serial.PARITY_EVEN
+port.stopbits=serial.STOPBITS_TWO
+port.timeout = 10.0
 
 port.open()
 
@@ -104,6 +110,6 @@ port.flushInput()
 while True:
 	try:
 		input_bytes = port.read_until(b'\r')
-		process_incoming_line(input_bytes)
-	except:
-		print("Error")
+		process_incoming_line(input_bytes[1:])
+	except Exception as error:
+		print("Error",error)
